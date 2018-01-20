@@ -205,6 +205,7 @@ def main():
     dp.add_handler(CommandHandler('cancel', command_cancel))
     dp.add_handler(MessageHandler(Filters.text, messages))
 
+    print("Bot @{} has been started!".format(upd.bot.username))
     upd.start_polling()
     upd.idle()
 
