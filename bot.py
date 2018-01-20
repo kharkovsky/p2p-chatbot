@@ -6,6 +6,8 @@ import os
 
 from telegram import ParseMode
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.error import (TelegramError, Unauthorized, BadRequest,
+                            TimedOut, ChatMigrated, NetworkError)
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -18,8 +20,7 @@ STATE_IDLE = 0x0000
 STATE_SEARCHING = 0x0001
 STATE_CHATTING = 0x0002
 
-active_users = {
-}
+active_users = {}
 searching = []
 
 
@@ -174,8 +175,17 @@ def command_stop(bot, update):
     update.message.reply_text("Bye!")
 
 
-def main():
+def error_handler(bot, update, error):
+    try:
+        raise error
+    except TimedOut:
+        print("TimedOut")
+    except NetworkError:
+        print("Network error! Seems like too many TimedOut raised before. Restarting bot...")
+        main()
 
+
+def main():
     token = None
 
     try:
@@ -204,6 +214,7 @@ def main():
     dp.add_handler(CommandHandler('stop', command_stop))
     dp.add_handler(CommandHandler('cancel', command_cancel))
     dp.add_handler(MessageHandler(Filters.text, messages))
+    dp.add_error_handler(error_handler)
 
     print("Bot @{} has been started!".format(upd.bot.username))
     upd.start_polling()
