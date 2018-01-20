@@ -8,4 +8,4 @@ Anonymous chatbot written in Python. Version 1.0
 
 *OR*
 
-2. Add command parameter -t or --token to your script. Example: python bot.py -t <TOKEN>
+2. Add command parameter -t or --token to your script. Example: python bot.py -t TOKEN_STRING
