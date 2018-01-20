@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys  # For passing -t or --token right from terminal
 import logging  # Only service information without any user data
+import os
 
 
 from telegram import ParseMode
@@ -10,6 +11,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
+APP_FOLDER = os.path.dirname(os.path.realpath(__file__))
 STATE = 0xFFFF
 TARGET = 0xFFFE
 STATE_IDLE = 0x0000
@@ -182,7 +184,7 @@ def main():
                 token = sys.argv[sys.argv.index(keyword)+1]
                 break
         else:
-            with open('token.secret', 'r') as token_file:
+            with open(os.path.join(APP_FOLDER, 'token.secret'), 'r') as token_file:
                 token = token_file.readline().strip()
     except IndexError:
         print("No token specified!\nUsage: bot.py [-t|--token] [TOKEN_STRING]")
