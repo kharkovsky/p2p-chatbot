@@ -182,7 +182,7 @@ def error_handler(bot, update, error):
         print("TimedOut")
     except NetworkError:
         print("Network error! Seems like too many TimedOut raised before. Restarting bot...")
-        main()
+        os.execv(sys.executable, ['python'] + sys.argv)
 
 
 def main():
