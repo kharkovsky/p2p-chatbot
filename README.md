@@ -6,6 +6,6 @@ Anonymous chatbot written in Python. Version 1.0
 
 2. Be sure you added token.secret file by bot script with containing secret at first line
 
-OR
+*OR*
 
 2. Add command parameter -t or --token to your script. Example: python bot.py -t <TOKEN>
