@@ -31,10 +31,6 @@ def init():
         active_users[user] = {STATE: STATE_IDLE}
 
 
-def started(user_id):
-    return users.Database.exists(user_id)
-
-
 def command_start(bot, update):
     you = update.message.chat_id
 
