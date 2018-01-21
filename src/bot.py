@@ -38,7 +38,7 @@ def started(user_id):
 def command_start(bot, update):
     you = update.message.chat_id
 
-    if not started(you):
+    if active_users.get(you, None) is None:
         bot.send_message(chat_id=you,
                          text="*Welcome to anon chat!*\n/search - Search for chat",
                               # "\n/settings - Settings menu",
@@ -54,7 +54,7 @@ def command_start(bot, update):
 def command_search(bot, update):
     you = update.message.chat_id
 
-    if not started(you):
+    if active_users.get(you, None) is None:
         bot.send_message(chat_id=update.message.chat_id,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
