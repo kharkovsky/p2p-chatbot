@@ -10,7 +10,7 @@ from telegram.error import (TelegramError, Unauthorized, BadRequest,
                             TimedOut, ChatMigrated, NetworkError)
 
 
-from users import Database
+import users  # Otherwise Intellij pronounces error
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -27,13 +27,12 @@ searching = []
 
 
 def init():
-    users = Database.user_list()
-    for user in users:
+    for user in users.Database.user_list():
         active_users[user] = {STATE: STATE_IDLE}
 
 
 def started(user_id):
-    return Database.exists(user_id)
+    return users.Database.exists(user_id)
 
 
 def command_start(bot, update):
@@ -45,7 +44,7 @@ def command_start(bot, update):
                               # "\n/settings - Settings menu",
                          parse_mode=ParseMode.MARKDOWN)
         active_users[you] = {STATE: STATE_IDLE}
-        Database.add_user(you)
+        users.Database.add_user(you)
     else:
         bot.send_message(chat_id=you,
                          text="*We have already started*",
@@ -182,14 +181,12 @@ def command_stop(bot, update):
         return
 
     if active_users[you][STATE] == STATE_CHATTING:
-        bot.send_message(chat_id=you, text="*/stop conversation at first!*",
-                         parse_mode=ParseMode.MARKDOWN)
-        return
+        command_bye(bot, update)
     elif active_users[you][STATE] == STATE_SEARCHING:
         searching.remove(you)
 
     del active_users[you]
-    Database.remove_user(you)
+    users.Database.remove_user(you)
     update.message.reply_text("Bye!")
 
 
@@ -241,6 +238,6 @@ def main():
 
 
 if __name__ == "__main__":
-    Database.init()
+    users.Database.init()
     main()
-    Database.close()
+    users.Database.close()

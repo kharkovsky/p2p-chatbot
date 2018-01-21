@@ -106,9 +106,6 @@ class Database:
         finally:
             cursor.close()
 
-
-
-
     @staticmethod
     def close():
         if Database.connection is not None:
