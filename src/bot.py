@@ -23,7 +23,7 @@ users = None
 
 def init():
     global users
-    users = Users(Database.user_list())
+    users = Users()
 
 
 def command_start(bot, update):
@@ -221,8 +221,8 @@ def main():
     upd.start_polling()
     upd.idle()
 
+    del users
+
 
 if __name__ == "__main__":
-    Database.init()
     main()
-    Database.close()
