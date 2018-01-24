@@ -3,44 +3,38 @@ import sys  # For passing -t or --token right from terminal
 import logging  # Only service information without any user data
 import os
 
-
+import time
 from telegram import ParseMode
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram.error import (TelegramError, Unauthorized, BadRequest,
                             TimedOut, ChatMigrated, NetworkError)
 
 
-import users  # Otherwise Intellij pronounces error
+from users import User, Users, Database, Debug
+
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
 APP_FOLDER = os.path.dirname(os.path.realpath(__file__))
-STATE = 0xFFFF
-TARGET = 0xFFFE
-STATE_IDLE = 0x0000
-STATE_SEARCHING = 0x0001
-STATE_CHATTING = 0x0002
 
-active_users = {}
-searching = []
+users = None
 
 
 def init():
-    for user in users.Database.user_list():
-        active_users[user] = {STATE: STATE_IDLE}
+    global users
+    users = Users(Database.user_list())
 
 
 def command_start(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=you,
                          text="*Welcome to anon chat!*\n/search - Search for chat",
                               # "\n/settings - Settings menu",
                          parse_mode=ParseMode.MARKDOWN)
-        active_users[you] = {STATE: STATE_IDLE}
-        users.Database.add_user(you)
+        users.add(you)
     else:
         bot.send_message(chat_id=you,
                          text="*We have already started*",
@@ -50,45 +44,38 @@ def command_start(bot, update):
 def command_search(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=update.message.chat_id,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
         return
 
-    if active_users[you][STATE] != STATE_IDLE:
+    if users.in_search(you):
         return
 
-    bot.send_message(chat_id=you,
-                     text="*Searching for chat*...\n/cancel - Stop searching",
-                     parse_mode=ParseMode.MARKDOWN)
-
-    if len(searching) >= 1:
-        chatmate = searching.pop()
-
-        active_users[chatmate][TARGET] = you
-        active_users[chatmate][STATE] = STATE_CHATTING
-        active_users[you][TARGET] = chatmate
-        active_users[you][STATE] = STATE_CHATTING
-
-        update.message.reply_text("Chat found! Talk!")
-        bot.send_message(chat_id=chatmate, text="Chat found! Talk!")
+    if not users.search_empty():
+        for chat_id in users.create_chat(you):
+            bot.send_message(chat_id=chat_id,
+                             text="Chat found! Talk!")
+            time.sleep(.3)
     else:
-        active_users[you][STATE] = STATE_SEARCHING
-        searching.append(you)
+        bot.send_message(chat_id=you,
+                         text="*Searching for chat*...\n/cancel - Stop searching",
+                         parse_mode=ParseMode.MARKDOWN)
+        users.search_add(you)
 
 
 def messages(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=you,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
         return
 
-    if active_users[you][STATE] == STATE_CHATTING:
-        bot.send_message(chat_id=active_users[you][TARGET],
+    if users.is_chatting(you):
+        bot.send_message(chat_id=users.get(you).target.id,
                          text="*Stranger*\n{}".format(update.message.text),
                          parse_mode=ParseMode.MARKDOWN)
 
@@ -96,94 +83,95 @@ def messages(bot, update):
 def command_bye(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=you,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
         return
 
-    if active_users[you][STATE] == STATE_CHATTING:
-        chatmate = active_users[you][TARGET]
-
-        bot.send_message(chat_id=you,
-                         text="*Chatting has been stopped.*\n"
-                              "/search - Search for another chat\n/settings - Settings menu",
-                         parse_mode=ParseMode.MARKDOWN)
-        bot.send_message(chat_id=chatmate,
-                         text="*Stranger has stopped conversation.*",
-                         parse_mode=ParseMode.MARKDOWN)
-
-        active_users[chatmate][STATE] = STATE_IDLE
-        active_users[you][STATE] = STATE_IDLE
-
-        del active_users[chatmate][TARGET]
-        del active_users[you][TARGET]
+    if users.is_chatting(you):
+        for chat_id in users.stop_chat(you):
+            bot.send_message(chat_id=chat_id,
+                             text="*Chatting has been stopped.*\n"
+                                  "/search - Search for another chat\n/settings - Settings menu",
+                             parse_mode=ParseMode.MARKDOWN)
 
 
 def command_settings(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=you,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
         return
-
-    if active_users[you][STATE] == STATE_IDLE:
-        update.message.reply_text("TODO: settings")
 
 
 def command_offer(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=you,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
-        return
-
-    if active_users[you][STATE] == STATE_CHATTING:
+    elif users.is_chatting(you):
         update.message.reply_text("TODO: offer")
 
 
 def command_cancel(bot, update):
     you = update.message.chat_id
-
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=you,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
-        return
-
-    if active_users[you][STATE] == STATE_SEARCHING:
+    elif users.in_search(you):
+        users.search_remove(you)
         bot.send_message(chat_id=you,
                          text="*Canceled.*\n/search - Search for chat",
                               # "\n/settings - Settings menu",
                          parse_mode=ParseMode.MARKDOWN)
 
-        searching.remove(update.message.chat_id)
-        active_users[update.message.chat_id][STATE] = STATE_IDLE
-
-        return STATE_IDLE
-
 
 def command_stop(bot, update):
     you = update.message.chat_id
 
-    if active_users.get(you, None) is None:
+    if not users.exists(you):
         bot.send_message(chat_id=update.message.chat_id,
                          text="*PRO TIP*: type /start to start",
                          parse_mode=ParseMode.MARKDOWN)
         return
 
-    if active_users[you][STATE] == STATE_CHATTING:
+    if users.is_chatting(you):
         command_bye(bot, update)
-    elif active_users[you][STATE] == STATE_SEARCHING:
-        searching.remove(you)
+    elif users.in_search(you):
+        users.search_remove(you)
 
-    del active_users[you]
-    users.Database.remove_user(you)
+    users.remove(you)
+
     update.message.reply_text("Bye!")
+
+
+def command_print(bot, update):
+    you = update.message.chat_id
+    commands = set(update.message.text.split(' ')[1:])
+
+    if len(commands) == 0:
+        bot.send_message(chat_id=you, text="You requested nothing! Available options: in_chat active in_search")
+        return
+
+    to_print = "You requested:\n-> " + '\n-> '.join(commands)
+    bot.send_message(chat_id=you, text=to_print)
+
+    message = ''
+    for command in commands:
+        if command == 'active':
+            message += 'active = [' + ', '.join(str(v) for v in Debug.users_active()) + ']\n'
+        elif command == 'in_chat':
+            message += 'in_chat = [' + ', '.join(str(v) for v in Debug.users_chatting()) + ']\n'
+        elif command == 'in_search':
+            message += 'in_search = [' + ', '.join(str(v) for v in Debug.users_searching()) + ']\n'
+
+    bot.send_message(chat_id=you, text=message)
 
 
 def error_handler(bot, update, error):
@@ -219,6 +207,7 @@ def main():
     dp = upd.dispatcher
 
     dp.add_handler(CommandHandler('start', command_start))
+    dp.add_handler(CommandHandler('print', command_print))  # DEBUG: print objects
     dp.add_handler(CommandHandler('search', command_search))
     dp.add_handler(CommandHandler('bye', command_bye))
     dp.add_handler(CommandHandler('offer', command_offer))
@@ -234,6 +223,6 @@ def main():
 
 
 if __name__ == "__main__":
-    users.Database.init()
+    Database.init()
     main()
-    users.Database.close()
+    Database.close()
