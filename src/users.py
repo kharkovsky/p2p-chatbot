@@ -156,7 +156,12 @@ class Users:
     active = {}  # id: User
     searching = []  # id's
 
-    def __init__(self, users):
+    def __init__(self, users=None):
+        Database.init()
+
+        if users is None:
+            users = Database.user_list()
+
         for user_id in users:
             self.active[user_id] = User(user_id)
 
@@ -237,6 +242,9 @@ class Users:
 
     def exists(self, user_id):
         return user_id in self.active
+
+    def __del__(self):
+        Database.close()
 
 
 class Debug:
