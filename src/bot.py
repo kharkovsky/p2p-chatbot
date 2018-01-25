@@ -56,6 +56,26 @@ def if_chatting(func):
     return wrapped
 
 
+def if_idle(func):
+    @wraps(func)
+    def wrapped(bot, update, *args, **kwargs):
+        you = update.effective_user.id
+        if not users.is_idle(you):
+            return
+        return func(bot, update, *args, **kwargs)
+    return wrapped
+
+
+def if_searching(func):
+    @wraps(func)
+    def wrapped(bot, update, *args, **kwargs):
+        you = update.effective_user.id
+        if not users.in_search(you):
+            return
+        return func(bot, update, *args, **kwargs)
+    return wrapped
+
+
 def init():
     global users
     users = Users()
@@ -66,8 +86,8 @@ def command_start(bot, update):
 
     if not users.exists(you):
         bot.send_message(chat_id=you,
-                         text="*Welcome to anon chat!*\n/search - Search for chat",
-                              # "\n/settings - Settings menu",
+                         text="*Welcome to anon chat!*\n/search - Search for chat"
+                              "\n/settings - Settings menu",
                          parse_mode=ParseMode.MARKDOWN)
         users.add(you)
     else:
@@ -77,11 +97,9 @@ def command_start(bot, update):
 
 
 @if_started
+@if_idle
 def command_search(bot, update):
     you = update.message.chat_id
-
-    if users.in_search(you):
-        return
 
     if not users.search_empty():
         for chat_id in users.create_chat(you):
@@ -119,6 +137,7 @@ def messages_photo(bot, update):
             caption = "{}{}".format(caption_title, caption)
         else:
             bot.send_message(chat_id=target, text="Photo from Stranger:")
+            time.sleep(.3)
 
     bot.send_photo(chat_id=target,
                    photo=update.message.photo.pop().file_id,
@@ -126,24 +145,44 @@ def messages_photo(bot, update):
 
 
 @if_started
-def command_bye(bot, update):
+@if_chatting
+def messages_audio(bot, update):
     you = update.message.chat_id
+    target = users.get(you).target.id
 
-    if not users.exists(you):
-        bot.send_message(chat_id=you,
-                         text="*PRO TIP*: type /start to start",
-                         parse_mode=ParseMode.MARKDOWN)
-        return
-
-    if users.is_chatting(you):
-        for chat_id in users.stop_chat(you):
-            bot.send_message(chat_id=chat_id,
-                             text="*Chatting has been stopped.*\n"
-                                  "/search - Search for another chat\n/settings - Settings menu",
-                             parse_mode=ParseMode.MARKDOWN)
+    bot.send_message(chat_id=target,
+                     text="*Audio from stranger:*",
+                     parse_mode=ParseMode.MARKDOWN)
+    time.sleep(.3)
+    bot.send_audio(chat_id=target, audio=update.message.audio.file_id)
 
 
 @if_started
+@if_chatting
+def messages_voice(bot, update):
+    you = update.message.chat_id
+    target = users.get(you).target.id
+
+    bot.send_message(chat_id=target,
+                     text="*Voice message from stranger:*",
+                     parse_mode=ParseMode.MARKDOWN)
+    time.sleep(.3)
+    bot.send_voice(chat_id=target, voice=update.message.voice.file_id)
+
+
+@if_started
+@if_chatting
+def command_bye(bot, update):
+    you = update.message.chat_id
+    for chat_id in users.stop_chat(you):
+        bot.send_message(chat_id=chat_id,
+                         text="*Chatting has been stopped.*\n"
+                              "/search - Search for another chat\n/settings - Settings menu",
+                         parse_mode=ParseMode.MARKDOWN)
+
+
+@if_started
+@if_idle
 def command_settings(bot, update):
     you = update.message.chat_id
 
@@ -158,14 +197,15 @@ def command_offer(bot, update):
 
 
 @if_started
+@if_searching
 def command_cancel(bot, update):
     you = update.message.chat_id
-    if users.in_search(you):
-        users.search_remove(you)
-        bot.send_message(chat_id=you,
-                         text="*Canceled.*\n/search - Search for chat",
-                              # "\n/settings - Settings menu",
-                         parse_mode=ParseMode.MARKDOWN)
+
+    users.search_remove(you)
+    bot.send_message(chat_id=you,
+                     text="*Canceled.*\n/search - Search for chat",
+                          # "\n/settings - Settings menu",
+                     parse_mode=ParseMode.MARKDOWN)
 
 
 @if_started
@@ -252,9 +292,11 @@ def main():
     dp.add_handler(CommandHandler('settings', command_settings))
     dp.add_handler(CommandHandler('stop', command_stop))
     dp.add_handler(CommandHandler('cancel', command_cancel))
-    dp.add_handler(MessageHandler(Filters.text, messages))
     dp.add_handler(MessageHandler(Filters.command, command_unknown))
+    dp.add_handler(MessageHandler(Filters.text, messages))
     dp.add_handler(MessageHandler(Filters.photo, messages_photo))
+    dp.add_handler(MessageHandler(Filters.audio, messages_audio))
+    dp.add_handler(MessageHandler(Filters.voice, messages_voice))
     dp.add_error_handler(error_handler)
 
     print("Bot @{} has been started!".format(upd.bot.username))
